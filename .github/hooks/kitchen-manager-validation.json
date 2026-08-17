@@ -1,0 +1,31 @@
+{
+  "hooks": [
+    {
+      "event": "PostToolUse",
+      "type": "command",
+      "description": "Validate Kitchen Manager plugin code on file save",
+      "command": "powershell -NoProfile -Command \"Write-Host 'Kitchen Manager: Validating code...'; php -l '{filePath}' 2>&1; if ($LASTEXITCODE -eq 0) { Write-Host '✓ Syntax valid' -ForegroundColor Green } else { Write-Host '✗ Syntax errors detected' -ForegroundColor Red }\"",
+      "windows": "powershell -NoProfile -Command \"Write-Host 'Kitchen Manager: Validating code...'; php -l '{filePath}' 2>&1; if ($LASTEXITCODE -eq 0) { Write-Host '✓ Syntax valid' -ForegroundColor Green } else { Write-Host '✗ Syntax errors detected' -ForegroundColor Red }\"",
+      "timeout": 5000,
+      "applyTo": ["**/kitchen-manager/**/*.php"]
+    },
+    {
+      "event": "PostToolUse",
+      "type": "command",
+      "description": "Flag missing prepared statements in database queries",
+      "command": "powershell -NoProfile -Command \"$content = Get-Content '{filePath}' -Raw; if ($content -match '\\$wpdb->(get_results|get_row|query)\\s*\\(\\s*[\\\"\\']' -and $content -notmatch '\\$wpdb->prepare') { Write-Host '⚠️  WARNING: Possible unprepared SQL query detected' -ForegroundColor Yellow }\"",
+      "windows": "powershell -NoProfile -Command \"$content = Get-Content '{filePath}' -Raw; if ($content -match '\\$wpdb->(get_results|get_row|query)\\s*\\(\\s*[\\\"\\']' -and $content -notmatch '\\$wpdb->prepare') { Write-Host '⚠️  WARNING: Possible unprepared SQL query detected' -ForegroundColor Yellow }\"",
+      "timeout": 3000,
+      "applyTo": ["**/kitchen-manager/**/Repositories/**/*.php"]
+    },
+    {
+      "event": "PostToolUse",
+      "type": "command",
+      "description": "Validate admin_post handlers have nonce verification",
+      "command": "powershell -NoProfile -Command \"$content = Get-Content '{filePath}' -Raw; if ($content -match 'admin_post_' -and $content -notmatch 'wp_verify_nonce|check_admin_referer') { Write-Host '🔒 SECURITY: admin_post handler may be missing nonce verification' -ForegroundColor Magenta }\"",
+      "windows": "powershell -NoProfile -Command \"$content = Get-Content '{filePath}' -Raw; if ($content -match 'admin_post_' -and $content -notmatch 'wp_verify_nonce|check_admin_referer') { Write-Host '🔒 SECURITY: admin_post handler may be missing nonce verification' -ForegroundColor Magenta }\"",
+      "timeout": 3000,
+      "applyTo": ["**/kitchen-manager/**/*.php"]
+    }
+  ]
+}
