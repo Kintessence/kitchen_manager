@@ -93,103 +93,97 @@ class RecipeService
     }
 
     public function saveRecipe($id, $name = '', $yield = 1.0, $items = [], $notes = ''): int 
-    {
-        if (is_array($id)) {
-            $data  = $id;
-            $rId   = !empty($data['id']) ? (int) $data['id'] : null;
-            $rName = sanitize_text_field($data['name'] ?? '');
-            $rYld  = max(0.1, (float) ($data['yield'] ?? 1.0));
-            $rNote = sanitize_textarea_field($data['notes'] ?? '');
-            $rItms = $data['items'] ?? [];
-        } else {
-            $rId   = !empty($id) ? (int) $id : null;
-            $rName = sanitize_text_field($name);
-            $rYld  = max(0.1, (float) $yield);
-            $rNote = sanitize_textarea_field($notes);
-            $rItms = is_array($items) ? $items : [];
-        }
+{
+    global $wpdb;
 
-        $ingredients = [];
-        foreach ($this->ingredientService->getIngredients() as $ing) {
-            $pkgSize = (float)($ing->package_size ?? 1.0);
-            $pkgCost = (float)($ing->package_cost ?? 0.0);
-            $pkgUnit = $ing->package_unit ?? $ing->unit ?? 'g';
-            $unit    = $ing->unit ?? 'g';
+    $rId   = !empty($id) ? (int) $id : null;
+    $rName = sanitize_text_field($name);
+    $rYld  = max(0.0001, (float) $yield);
+    $rNote = sanitize_textarea_field($notes);
+    $rItms = is_array($items) ? $items : [];
 
-            $effectiveSize = $pkgSize;
-            if ($pkgUnit === 'kg' && $unit === 'g') {
-                $effectiveSize = $pkgSize * 1000;
-            } elseif ($pkgUnit === 'l' && $unit === 'ml') {
-                $effectiveSize = $pkgSize * 1000;
-            }
+    // Mapeia todos os insumos para leitura rápida
+    $ingredients = [];
+    foreach ($this->ingredientService->getIngredients() as $ing) {
+        $pkgSize = max(0.0001, (float)($ing->package_size ?? 1.0));
+        $pkgCost = (float)($ing->package_cost ?? 0.0);
+        $unit    = strtolower((string)($ing->unit ?? 'g'));
 
-            $unitCost = ($effectiveSize > 0) ? ($pkgCost / $effectiveSize) : 0.0;
-            
-            $ing->calculated_unit_cost = $unitCost;
-            $ing->calculated_pkg_cost  = $pkgCost;
-            $ingredients[$ing->id] = $ing;
-        }
-
-        $totalBatchCost = 0.0;
-        $preparedItems = [];
-
-        foreach ($rItms as $it) {
-            $ingId = (int) ($it['ingredient_id'] ?? 0);
-            $qty   = (float) str_replace(',', '.', (string)($it['quantity'] ?? 0));
-            $mType = sanitize_key($it['measure_type'] ?? 'unit');
-
-            if ($ingId > 0 && $qty > 0) {
-                $subtotal = 0.0;
-                if (isset($ingredients[$ingId])) {
-                    $ing = $ingredients[$ingId];
-                    if ($mType === 'pkg') {
-                        $subtotal = $ing->calculated_pkg_cost * $qty;
-                    } elseif ($mType === 'g_from_kg' || $mType === 'ml_from_l') {
-                        $subtotal = ($ing->calculated_unit_cost / 1000) * $qty;
-                    } else {
-                        $subtotal = $ing->calculated_unit_cost * $qty;
-                    }
-                }
-                $totalBatchCost += $subtotal;
-
-                $preparedItems[] = [
-                    'ingredient_id' => $ingId,
-                    'quantity'      => $qty,
-                    'measure_type'  => $mType,
-                    'cost'          => $subtotal
-                ];
-            }
-        }
-
-        $unitPortionCost = $rYld > 0 ? ($totalBatchCost / $rYld) : 0.0;
-
-        $recipeDTO = new RecipeDTO(
-            $rId,
-            $rName,
-            (float) $rYld,
-            (float) $totalBatchCost,
-            (float) $unitPortionCost,
-            $preparedItems
-        );
-
-        $recipeId = $this->repository->save($recipeDTO);
-
-        global $wpdb;
-        $tableItems = $wpdb->prefix . 'km_recipe_items';
-        $wpdb->delete($tableItems, ['recipe_id' => $recipeId]);
-
-        foreach ($preparedItems as $it) {
-            $this->repository->saveItem([
-                'recipe_id'     => $recipeId,
-                'ingredient_id' => $it['ingredient_id'],
-                'quantity'      => $it['quantity'],
-                'measure_type'  => $it['measure_type'],
-                'cost'          => $it['cost']
-            ]);
-        }
-
-        return $recipeId;
+        $ing->base_unit_cost = $pkgCost / $pkgSize; // Custo por 1 unidade base cadastrada
+        $ing->pkg_cost       = $pkgCost;
+        $ing->cad_unit       = $unit;
+        $ingredients[$ing->id] = $ing;
     }
+
+    $totalBatchCost = 0.0;
+    $preparedItems  = [];
+
+    foreach ($rItms as $it) {
+        $ingId = (int) ($it['ingredient_id'] ?? 0);
+        $qty   = (float) str_replace(',', '.', (string)($it['quantity'] ?? 0));
+        $mType = sanitize_key($it['measure_type'] ?? 'unit');
+
+        if ($ingId > 0 && $qty > 0 && isset($ingredients[$ingId])) {
+            $ing = $ingredients[$ingId];
+            $subtotal = 0.0;
+
+            if ($mType === 'pkg') {
+                // Embalagem Fechada
+                $subtotal = $ing->pkg_cost * $qty;
+            } elseif ($mType === 'ml_from_l' || ($mType === 'ml' && $ing->cad_unit === 'l')) {
+                // Insumo cadastrado em Litros, usado em Mililitros (divide por 1000)
+                $subtotal = ($ing->base_unit_cost / 1000) * $qty;
+            } elseif ($mType === 'g_from_kg' || ($mType === 'g' && $ing->cad_unit === 'kg')) {
+                // Insumo cadastrado em Kg, usado em Gramas (divide por 1000)
+                $subtotal = ($ing->base_unit_cost / 1000) * $qty;
+            } else {
+                // Medida direta (ex: gramas para gramas, litros para litros)
+                $subtotal = $ing->base_unit_cost * $qty;
+            }
+
+            $totalBatchCost += $subtotal;
+
+            $preparedItems[] = [
+                'ingredient_id' => $ingId,
+                'quantity'      => $qty,
+                'measure_type'  => $mType, // Grava exatamente a medida escolhida
+                'cost'          => $subtotal
+            ];
+        }
+    }
+
+    $unitPortionCost = $totalBatchCost / $rYld;
+
+    $recipeDTO = new \KitchenManager\Modules\Recipes\DTOs\RecipeDTO(
+        $rId,
+        $rName,
+        $rYld,
+        $totalBatchCost,
+        $unitPortionCost,
+        $preparedItems,
+        $rNote
+    );
+
+    // Transação Fail-Safe
+    $wpdb->query('START TRANSACTION');
+
+    try {
+        $recipeId = $this->repository->save($recipeDTO);
+        $this->repository->deleteItemsByRecipeId($recipeId);
+
+        foreach ($preparedItems as $item) {
+            $item['recipe_id'] = $recipeId;
+            $this->repository->saveItem($item);
+        }
+
+        $wpdb->query('COMMIT');
+        return $recipeId;
+    } catch (\Throwable $e) {
+        $wpdb->query('ROLLBACK');
+        error_log('KM Persist Error: ' . $e->getMessage());
+        throw $e;
+    }
+}
 
     public function deleteRecipe(int $id): bool 
     {

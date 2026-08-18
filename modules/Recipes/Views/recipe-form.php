@@ -40,14 +40,13 @@ $editItems = km_get_prop($editingRecipe, ['items', 'ingredients'], []);
     </div>
 
     <?php if (isset($_GET['status']) && $_GET['status'] === 'saved'): ?>
-        <div class="notice notice-success is-dismissible" style="margin-top: 15px;"><p><strong>✅ Ficha técnica salva com sucesso!</strong></p></div>
+        <div class="notice notice-success is-dismissible" style="margin: 15px 0;"><p><strong>✅ Ficha técnica salva com sucesso!</strong></p></div>
     <?php elseif (isset($_GET['status']) && $_GET['status'] === 'deleted'): ?>
-        <div class="notice notice-info is-dismissible" style="margin-top: 15px;"><p><strong>🗑️ Ficha técnica removida com sucesso.</strong></p></div>
+        <div class="notice notice-info is-dismissible" style="margin: 15px 0;"><p><strong>🗑️ Ficha técnica removida com sucesso.</strong></p></div>
     <?php endif; ?>
 
     <div class="km-split-grid">
         
-        <!-- COLUNA ESQUERDA: FORMULÁRIO -->
         <div class="km-card km-form-col">
             <h2 class="km-card-title"><?php echo $isEditing ? '✏️ Editar Ficha Técnica' : '➕ Nova Ficha Técnica'; ?></h2>
 
@@ -69,7 +68,10 @@ $editItems = km_get_prop($editingRecipe, ['items', 'ingredients'], []);
 
                 <div class="km-section-subhead">
                     <span style="font-weight: 700; font-size: 12px; text-transform: uppercase; color: #2c3338;">Insumos da Receita</span>
-                    <button type="button" class="button button-secondary button-small" id="km-add-ing-btn">➕ Adicionar Insumo</button>
+                    <div style="display: flex; gap: 8px;">
+                        <button type="button" class="button button-link-delete" id="km-clear-all-ings-btn" style="color: #b32d2e; text-decoration: none; font-size: 12px;">🗑️ Limpar</button>
+                        <button type="button" class="button button-secondary button-small" id="km-add-ing-btn">➕ Adicionar Insumo</button>
+                    </div>
                 </div>
 
                 <div id="km-recipe-items-box" class="km-items-container">
@@ -81,6 +83,17 @@ $editItems = km_get_prop($editingRecipe, ['items', 'ingredients'], []);
                             $itQty     = (float) km_get_prop($it, ['quantity', 'quantity_used', 'quantityUsed'], 1.0);
                             $itMeasure = km_get_prop($it, ['measure_type', 'measureType', 'unit_type'], 'unit');
                             $itCost    = (float) km_get_prop($it, ['cost', 'total_cost', 'totalCost'], 0.0);
+
+                            $selectedIng = null;
+                            foreach ($ingredients as $ing) {
+                                if ((int) km_get_prop($ing, ['id'], 0) === $itIngId) {
+                                    $selectedIng = $ing;
+                                    break;
+                                }
+                            }
+                            $ingUnit = strtolower((string)km_get_prop($selectedIng, ['unit', 'usage_unit'], 'g'));
+                            $pkgType = km_get_prop($selectedIng, ['package_type'], 'Embalagem');
+                            $pkgSize = km_get_prop($selectedIng, ['package_size'], '1');
                     ?>
                         <div class="km-recipe-item-card">
                             <button type="button" class="km-item-del-btn" title="Remover Insumo">✕</button>
@@ -90,21 +103,21 @@ $editItems = km_get_prop($editingRecipe, ['items', 'ingredients'], []);
                                 <select name="items[<?php echo $rowIdx; ?>][ingredient_id]" class="km-select-ing" required>
                                     <option value="">-- Escolha um insumo --</option>
                                     <?php foreach ($ingredients as $ing): 
-                                        $pkgSize = (float) km_get_prop($ing, ['package_size', 'packageSize', 'package_quantity'], 1.0);
-                                        $pkgCost = (float) km_get_prop($ing, ['package_cost', 'packageCost', 'cost'], 0.0);
-                                        $unit    = strtolower((string)km_get_prop($ing, ['unit', 'usage_unit', 'usageUnit'], 'g'));
-                                        $pkgType = km_get_prop($ing, ['package_type'], 'Embalagem');
-                                        $unitCost = ($pkgSize > 0) ? ($pkgCost / $pkgSize) : 0.0;
-                                        $ingId   = (int) km_get_prop($ing, ['id'], 0);
+                                        $pkgSizeItem = (float) km_get_prop($ing, ['package_size', 'packageSize', 'package_quantity'], 1.0);
+                                        $pkgCostItem = (float) km_get_prop($ing, ['package_cost', 'packageCost', 'cost'], 0.0);
+                                        $unitItem    = strtolower((string)km_get_prop($ing, ['unit', 'usage_unit', 'usageUnit'], 'g'));
+                                        $pkgTypeItem = km_get_prop($ing, ['package_type'], 'Embalagem');
+                                        $unitCostItem = ($pkgSizeItem > 0) ? ($pkgCostItem / $pkgSizeItem) : 0.0;
+                                        $ingIdItem   = (int) km_get_prop($ing, ['id'], 0);
                                     ?>
-                                        <option value="<?php echo esc_attr($ingId); ?>" 
-                                                data-unit-cost="<?php echo esc_attr($unitCost); ?>"
-                                                data-pkg-cost="<?php echo esc_attr($pkgCost); ?>"
-                                                data-pkg-size="<?php echo esc_attr($pkgSize); ?>"
-                                                data-unit="<?php echo esc_attr($unit); ?>"
-                                                data-pkg-type="<?php echo esc_attr($pkgType); ?>"
-                                                <?php echo ($itIngId == $ingId) ? 'selected' : ''; ?>>
-                                            <?php echo esc_html(km_get_prop($ing, ['name'], 'Insumo')); ?> (R$ <?php echo number_format($unitCost, 4, ',', '.'); ?>/<?php echo esc_html($unit); ?>)
+                                        <option value="<?php echo esc_attr($ingIdItem); ?>" 
+                                                data-unit-cost="<?php echo esc_attr($unitCostItem); ?>"
+                                                data-pkg-cost="<?php echo esc_attr($pkgCostItem); ?>"
+                                                data-pkg-size="<?php echo esc_attr($pkgSizeItem); ?>"
+                                                data-unit="<?php echo esc_attr($unitItem); ?>"
+                                                data-pkg-type="<?php echo esc_attr($pkgTypeItem); ?>"
+                                                <?php echo ($itIngId === $ingIdItem) ? 'selected' : ''; ?>>
+                                            <?php echo esc_html(km_get_prop($ing, ['name'], 'Insumo')); ?> (R$ <?php echo number_format($unitCostItem, 4, ',', '.'); ?>/<?php echo esc_html($unitItem); ?>)
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
@@ -116,8 +129,16 @@ $editItems = km_get_prop($editingRecipe, ['items', 'ingredients'], []);
                                     <div class="km-inline-inputs">
                                         <input type="number" name="items[<?php echo $rowIdx; ?>][quantity]" value="<?php echo esc_attr($itQty); ?>" step="0.0001" min="0.0001" class="km-input-qty" required>
                                         <select name="items[<?php echo $rowIdx; ?>][measure_type]" class="km-select-measure" data-current-measure="<?php echo esc_attr($itMeasure); ?>">
-                                            <option value="unit">Medida</option>
-                                            <option value="pkg">Embalagem Inteira</option>
+                                            <?php if ($ingUnit === 'kg'): ?>
+                                                <option value="g_from_kg" <?php echo ($itMeasure === 'g_from_kg') ? 'selected' : ''; ?>>g (gramas)</option>
+                                                <option value="unit" <?php echo ($itMeasure === 'unit') ? 'selected' : ''; ?>>kg (quilos)</option>
+                                            <?php elseif ($ingUnit === 'l'): ?>
+                                                <option value="ml_from_l" <?php echo ($itMeasure === 'ml_from_l') ? 'selected' : ''; ?>>ml (mililitros)</option>
+                                                <option value="unit" <?php echo ($itMeasure === 'unit') ? 'selected' : ''; ?>>L (litros)</option>
+                                            <?php else: ?>
+                                                <option value="unit" <?php echo ($itMeasure === 'unit') ? 'selected' : ''; ?>><?php echo esc_html($ingUnit ?: 'Medida'); ?></option>
+                                            <?php endif; ?>
+                                            <option value="pkg" <?php echo ($itMeasure === 'pkg') ? 'selected' : ''; ?>><?php echo esc_html($pkgType); ?> (<?php echo esc_html($pkgSize); ?> <?php echo esc_html($ingUnit); ?>)</option>
                                         </select>
                                     </div>
                                 </div>
@@ -156,7 +177,6 @@ $editItems = km_get_prop($editingRecipe, ['items', 'ingredients'], []);
             </form>
         </div>
 
-        <!-- COLUNA DIREITA: LISTAGEM -->
         <div class="km-cards-col">
             <h2 style="font-size: 15px; margin: 0 0 12px 0; color: #1d2327;">Fichas Técnicas Cadastradas (<?php echo count($recipes); ?>)</h2>
 
@@ -248,10 +268,10 @@ $editItems = km_get_prop($editingRecipe, ['items', 'ingredients'], []);
 </div>
 
 <style>
-.km-recipes-wrap { max-width: 1280px; margin-top: 20px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+.km-recipes-wrap { max-width: 1280px; margin-top: 20px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif; }
 .km-header-bar { background: #ffffff; padding: 16px 20px; border: 1px solid #ccd0d4; border-radius: 8px; margin-bottom: 18px; }
-.km-split-grid { display: grid; grid-template-columns: 500px 1fr; gap: 20px; align-items: start; }
-.km-card { background: #fff; border: 1px solid #ccd0d4; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
+.km-split-grid { display: grid; grid-template-columns: 480px 1fr; gap: 20px; align-items: start; }
+.km-card { background: #ffffff; border: 1px solid #ccd0d4; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
 .km-card-title { font-size: 15px; margin: 0 0 14px 0; color: #1d2327; font-weight: 700; }
 .km-field { margin-bottom: 14px; }
 .km-field label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #2c3338; }
@@ -259,24 +279,24 @@ $editItems = km_get_prop($editingRecipe, ['items', 'ingredients'], []);
 .km-input-text { width: 100%; padding: 7px 10px; border: 1px solid #8c8f94; border-radius: 4px; box-sizing: border-box; }
 .km-section-subhead { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f0f0f1; padding-top: 12px; margin-top: 14px; margin-bottom: 10px; }
 
-.km-items-container { display: flex; flex-direction: column; gap: 10px; }
+.km-items-container { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
 .km-recipe-item-card { background: #fdfdfd; border: 1px solid #ccd0d4; border-radius: 6px; padding: 12px; position: relative; }
-.km-item-del-btn { position: absolute; top: 8px; right: 8px; background: none; border: none; color: #2271b1; font-weight: bold; cursor: pointer; font-size: 15px; }
+.km-item-del-btn { position: absolute; top: 8px; right: 8px; background: none; border: none; color: #b32d2e; font-weight: bold; cursor: pointer; font-size: 15px; }
 .km-item-field { margin-bottom: 8px; padding-right: 20px; }
 .km-select-ing { width: 100%; padding: 6px; border: 1px solid #8c8f94; border-radius: 4px; font-size: 13px; }
 .km-item-row-flex { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; }
 
 .km-qty-box { flex: 1; min-width: 0; }
 .km-inline-inputs { display: flex; gap: 6px; align-items: center; }
-.km-input-qty { width: 90px !important; min-width: 90px; padding: 6px 8px; border: 1px solid #8c8f94; border-radius: 4px; font-size: 13px; box-sizing: border-box; text-align: center; font-weight: 600; }
-.km-select-measure { flex: 1; min-width: 150px; padding: 6px 8px; border: 1px solid #8c8f94; border-radius: 4px; font-size: 12px; box-sizing: border-box; }
+.km-input-qty { width: 85px !important; min-width: 85px; padding: 6px 8px; border: 1px solid #8c8f94; border-radius: 4px; font-size: 13px; box-sizing: border-box; text-align: center; font-weight: 600; }
+.km-select-measure { flex: 1; min-width: 140px; padding: 6px 8px; border: 1px solid #8c8f94; border-radius: 4px; font-size: 12px; box-sizing: border-box; }
 
-.km-subtotal-box { text-align: right; min-width: 90px; }
+.km-subtotal-box { text-align: right; min-width: 85px; }
 .km-subtotal-val { display: block; font-size: 14px; color: #1d2327; margin-top: 2px; }
 
-.km-totals-banner { background: #f0f6fc; border-left: 4px solid #2271b1; padding: 12px 14px; border-radius: 0 6px 6px 0; margin-top: 14px; }
+.km-totals-banner { background: #f0f6fc; border-left: 4px solid #2271b1; padding: 12px 14px; border-radius: 0 6px 6px 0; }
 .km-cards-stack { display: flex; flex-direction: column; gap: 12px; }
-.km-recipe-card { background: #fff; border: 1px solid #ccd0d4; border-radius: 8px; padding: 16px 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
+.km-recipe-card { background: #ffffff; border: 1px solid #ccd0d4; border-radius: 8px; padding: 16px 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
 .km-rc-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #f0f0f1; padding-bottom: 10px; }
 .km-rc-title { margin: 0 0 3px 0; font-size: 16px; color: #1d2327; }
 .km-rc-sub { font-size: 12px; color: #646970; }
@@ -287,78 +307,69 @@ $editItems = km_get_prop($editingRecipe, ['items', 'ingredients'], []);
 .km-rc-comp-title { display: block; font-size: 11px; text-transform: uppercase; color: #646970; font-weight: 700; margin-bottom: 6px; }
 .km-tags-flex { display: flex; flex-wrap: wrap; gap: 6px; }
 .km-tag-pill { background: #f0f0f1; border: 1px solid #dcdcde; padding: 3px 8px; border-radius: 12px; font-size: 12px; color: #2c3338; display: inline-flex; align-items: center; gap: 6px; }
-.km-tag-del { color: #b32d2e; text-decoration: none; font-weight: bold; font-size: 11px; }
+.km-tag-del { color: #b32d2e; text-decoration: none; font-weight: bold; font-size: 11px; margin-left: 4px; }
 .km-rc-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f0f0f1; padding-top: 10px; }
 .km-btn-blue { border-color: #2271b1 !important; color: #2271b1 !important; }
 .km-empty-box { background: #fff; border: 1px dashed #c3c4c7; padding: 30px; text-align: center; border-radius: 8px; color: #646970; }
+
+@media (max-width: 960px) {
+    .km-split-grid { grid-template-columns: 1fr; }
+}
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    const container = document.getElementById('km-recipe-items-box');
-    const addBtn    = document.getElementById('km-add-ing-btn');
-    const yieldInp  = document.getElementById('km-r-yield');
-    const batchLbl  = document.getElementById('km-lbl-batch-cost');
-    const unitLbl   = document.getElementById('km-lbl-unit-cost');
-
-    function updateOptionsAvailability() {
-        const allSelects = container.querySelectorAll('.km-select-ing');
-        const selectedValues = [];
-
-        allSelects.forEach(sel => {
-            const val = sel.value;
-            if (val && val !== '') selectedValues.push(val);
-        });
-
-        allSelects.forEach(sel => {
-            const currentVal = sel.value;
-            Array.from(sel.options).forEach(opt => {
-                if (!opt.value) return;
-                if (selectedValues.includes(opt.value) && opt.value !== currentVal) {
-                    opt.disabled = true;
-                    opt.hidden = true;
-                } else {
-                    opt.disabled = false;
-                    opt.hidden = false;
-                }
-            });
-        });
-    }
+    const container   = document.getElementById('km-recipe-items-box');
+    const addBtn      = document.getElementById('km-add-ing-btn');
+    const clearAllBtn = document.getElementById('km-clear-all-ings-btn');
+    const yieldInp    = document.getElementById('km-r-yield');
+    const batchLbl    = document.getElementById('km-lbl-batch-cost');
+    const unitLbl     = document.getElementById('km-lbl-unit-cost');
 
     function syncMeasureOptions(card) {
-        const sel = card.querySelector('.km-select-ing');
-        const measureSel = card.querySelector('.km-select-measure');
-        if (!sel || !measureSel) return;
+    const sel = card.querySelector('.km-select-ing');
+    const measureSel = card.querySelector('.km-select-measure');
+    if (!sel || !measureSel) return;
 
-        const currentVal = measureSel.getAttribute('data-current-measure') || measureSel.value || 'unit';
+    // Resgata o valor atual ou o persistido pelo banco
+    const currentVal = measureSel.value || measureSel.getAttribute('data-current-measure') || '';
 
-        if (sel.selectedIndex > 0) {
-            const opt = sel.options[sel.selectedIndex];
-            const unit    = (opt.getAttribute('data-unit') || 'g').toLowerCase();
-            const pkgType = opt.getAttribute('data-pkg-type') || 'Embalagem';
-            const pkgSize = opt.getAttribute('data-pkg-size') || '';
+    if (sel.selectedIndex > 0) {
+        const opt     = sel.options[sel.selectedIndex];
+        const unit    = (opt.getAttribute('data-unit') || 'g').toLowerCase().trim();
+        const pkgType = opt.getAttribute('data-pkg-type') || 'Embalagem';
+        const pkgSize = opt.getAttribute('data-pkg-size') || '1';
 
-            let optionsHtml = '';
-            
-            if (unit === 'kg') {
-                optionsHtml += `<option value="g_from_kg" ${currentVal === 'g_from_kg' ? 'selected' : ''}>g (gramas)</option>`;
-                optionsHtml += `<option value="unit" ${currentVal === 'unit' ? 'selected' : ''}>kg (quilos)</option>`;
-            } else if (unit === 'l') {
-                optionsHtml += `<option value="ml_from_l" ${currentVal === 'ml_from_l' ? 'selected' : ''}>ml (mililitros)</option>`;
-                optionsHtml += `<option value="unit" ${currentVal === 'unit' ? 'selected' : ''}>L (litros)</option>`;
-            } else {
-                optionsHtml += `<option value="unit" ${currentVal === 'unit' ? 'selected' : ''}>${unit}</option>`;
-            }
-
-            optionsHtml += `<option value="pkg" ${currentVal === 'pkg' ? 'selected' : ''}>${pkgType} (${pkgSize} ${unit})</option>`;
-            measureSel.innerHTML = optionsHtml;
+        let optionsHtml = '';
+        if (unit === 'kg') {
+            optionsHtml += `<option value="g_from_kg">g (gramas)</option>`;
+            optionsHtml += `<option value="unit">kg (quilos)</option>`;
+        } else if (unit === 'l') {
+            optionsHtml += `<option value="ml_from_l">ml (mililitros)</option>`;
+            optionsHtml += `<option value="unit">L (litros)</option>`;
+        } else if (unit === 'g') {
+            optionsHtml += `<option value="unit">g (gramas)</option>`;
+        } else if (unit === 'ml') {
+            optionsHtml += `<option value="unit">ml (mililitros)</option>`;
         } else {
-            measureSel.innerHTML = `
-                <option value="unit">Medida</option>
-                <option value="pkg">Embalagem Cheia</option>
-            `;
+            optionsHtml += `<option value="unit">${unit}</option>`;
+        }
+        optionsHtml += `<option value="pkg">${pkgType} (${pkgSize} ${unit})</option>`;
+
+        measureSel.innerHTML = optionsHtml;
+
+        // Se o valor anterior existir nas novas opções, seleciona ele
+        const exists = Array.from(measureSel.options).some(o => o.value === currentVal);
+        if (exists) {
+            measureSel.value = currentVal;
+        } else {
+            // Padrão automático: se cadastrado em Litros, o padrão de uso na receita é ml
+            if (unit === 'l') measureSel.value = 'ml_from_l';
+            else if (unit === 'kg') measureSel.value = 'g_from_kg';
+            else measureSel.value = 'unit';
         }
     }
+}
 
     function calculate() {
         let total = 0;
@@ -377,7 +388,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 const measureType = measureSel ? measureSel.value : 'unit';
 
                 let subtotal = 0;
-
                 if (measureType === 'pkg') {
                     subtotal = pkgCost * qty;
                 } else if (measureType === 'g_from_kg' || measureType === 'ml_from_l') {
@@ -403,28 +413,30 @@ document.addEventListener('DOMContentLoaded', function () {
     function bindCard(card) {
         const sel = card.querySelector('.km-select-ing');
         const measureSel = card.querySelector('.km-select-measure');
-        
-        syncMeasureOptions(card);
 
         if (sel) {
             sel.addEventListener('change', function () {
                 if (measureSel) measureSel.removeAttribute('data-current-measure');
                 syncMeasureOptions(card);
-                updateOptionsAvailability();
                 calculate();
             });
         }
 
-        card.querySelectorAll('select, input').forEach(el => {
+        if (measureSel) {
+            measureSel.addEventListener('change', function () {
+                measureSel.setAttribute('data-current-measure', measureSel.value);
+                calculate();
+            });
+        }
+
+        card.querySelectorAll('input').forEach(el => {
             el.addEventListener('input', calculate);
-            el.addEventListener('change', calculate);
         });
 
         const del = card.querySelector('.km-item-del-btn');
         if (del) {
             del.addEventListener('click', function () {
                 card.remove();
-                updateOptionsAvailability();
                 calculate();
             });
         }
@@ -480,14 +492,26 @@ document.addEventListener('DOMContentLoaded', function () {
                     </div>
                 </div>
             `;
-            container.appendChild(div);
+            container.prepend(div);
             bindCard(div);
-            updateOptionsAvailability();
             calculate();
+
+            const select = div.querySelector('.km-select-ing');
+            if (select) select.focus();
         });
     }
 
-    updateOptionsAvailability();
+    if (clearAllBtn) {
+        clearAllBtn.addEventListener('click', function () {
+            const cards = container.querySelectorAll('.km-recipe-item-card');
+            if (cards.length === 0) return;
+            if (confirm('Deseja remover todos os insumos desta receita?')) {
+                container.innerHTML = '';
+                calculate();
+            }
+        });
+    }
+
     calculate();
 });
 </script>

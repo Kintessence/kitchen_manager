@@ -64,10 +64,48 @@ class IngredientsPage
     }
 
     public function render(): void 
-    {
-        $ingredients = $this->service->getIngredients();
-        $status      = isset($_GET['status']) ? sanitize_text_field(wp_unslash($_GET['status'])) : '';
+{
+    $orderby = sanitize_key($_GET['orderby'] ?? 'name');
+    $order   = strtoupper(sanitize_key($_GET['order'] ?? 'ASC')) === 'DESC' ? 'DESC' : 'ASC';
 
-        require_once KM_PLUGIN_DIR . 'modules/Ingredients/Views/ingredients-list.php';
+    $ingredients = $this->service->getAllIngredients($orderby, $order);
+    $status      = sanitize_key($_GET['status'] ?? '');
+
+    include KM_PLUGIN_DIR . 'modules/Ingredients/Views/ingredients-list.php';
     }
+
+    public function handleImport(): void 
+{
+    if (!current_user_can('manage_options')) {
+        wp_die('Acesso não autorizado.');
+    }
+
+    check_admin_referer('km_import_ingredients_nonce');
+
+    $raw_content = '';
+
+    // 1. Caso venha de upload de arquivo .CSV
+    if (!empty($_FILES['csv_file']['tmp_name']) && is_uploaded_file($_FILES['csv_file']['tmp_name'])) {
+        $raw_content = file_get_contents($_FILES['csv_file']['tmp_name']);
+    } 
+    // 2. Caso venha de texto colado no textarea
+    elseif (!empty($_POST['raw_textarea'])) {
+        $raw_content = wp_unslash($_POST['raw_textarea']);
+    }
+
+    if (empty(trim($raw_content))) {
+        wp_safe_redirect(admin_url('admin.php?page=kitchen-manager-ingredients&status=import_empty'));
+        exit;
+    }
+
+    try {
+        $rows  = $this->service->parseRawTextOrCsv($raw_content);
+        $count = $this->service->importBulk($rows);
+
+        wp_safe_redirect(admin_url('admin.php?page=kitchen-manager-ingredients&status=imported&count=' . $count));
+        exit;
+    } catch (\Throwable $e) {
+        wp_die('<strong>Erro na importação:</strong> ' . esc_html($e->getMessage()));
+    }
+}
 }

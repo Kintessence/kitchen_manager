@@ -19,5 +19,8 @@ class IngredientsModule implements ModuleInterface
         add_action('admin_menu', [$page, 'registerMenu'], 10);
         add_action('admin_post_km_save_ingredients', [$page, 'handleSave']);
         add_action('admin_post_km_delete_ingredient', [$page, 'handleDelete']);
+        add_action('admin_post_km_import_ingredients', [$page, 'handleImport']);
     }
+
+    
 }

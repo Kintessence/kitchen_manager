@@ -12,8 +12,8 @@ $profileService    = new BusinessProfileService();
 $ingredients = $ingredientService->getIngredients();
 $recipes     = $recipeService->getRecipes();
 $profile     = $profileService->getProfile();
-$totals      = $profileService->calculateTotals($profile);
-
+//$totals      = $profileService->calculateTotals($profile);
+$totals = $profileService->calculateMetrics();
 $totalIngredients = count($ingredients);
 $totalRecipes     = count($recipes);
 ?>

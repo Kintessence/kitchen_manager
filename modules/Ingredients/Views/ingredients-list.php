@@ -30,30 +30,76 @@ $unitsList    = ['g' => 'g', 'kg' => 'kg', 'ml' => 'ml', 'l' => 'L', 'un' => 'un
         <?php wp_nonce_field('km_save_ingredients_action', 'km_ingredients_nonce'); ?>
 
         <div class="km-card" style="margin-top: 15px; overflow-x: auto;">
+            <?php
+// Helper local para gerar URLs de ordenação
+$current_orderby = sanitize_key($_GET['orderby'] ?? 'name');
+$current_order   = strtoupper(sanitize_key($_GET['order'] ?? 'ASC')) === 'DESC' ? 'DESC' : 'ASC';
+
+$sort_url = function($column) use ($current_orderby, $current_order) {
+    $next_order = ($current_orderby === $column && $current_order === 'ASC') ? 'desc' : 'asc';
+    return add_query_arg(['orderby' => $column, 'order' => $next_order]);
+};
+
+$sort_icon = function($column) use ($current_orderby, $current_order) {
+    if ($current_orderby !== $column) return ' ↕';
+    return $current_order === 'ASC' ? ' 🔼' : ' 🔽';
+};
+?>
+<button type="button" class="button" onclick="document.getElementById('km-import-modal').style.display='flex'">📥 Importar CSV / Texto</button>
+
+<div id="km-import-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 99999; align-items: center; justify-content: center;">
+    <div style="background: #fff; padding: 25px; border-radius: 8px; width: 600px; max-width: 90%;">
+        <h2>📥 Importação Rápida de Insumos</h2>
+        <p style="color: #666; font-size: 13px;">
+            Formato esperado das colunas (separadas por <strong>Tabulação, Vírgula ou Ponto e Vírgula</strong>):<br>
+            <code>Nome | Categoria | Preço Pacote | Qtd Pacote | Unidade</code>
+        </p>
+
+        <form action="<?php echo esc_url(admin_url('admin-post.php')); ?>" method="post" enctype="multipart/form-data">
+            <input type="hidden" name="action" value="km_import_ingredients">
+            <?php wp_nonce_field('km_import_ingredients_nonce'); ?>
+
+            <div style="margin-bottom: 15px;">
+                <label><strong>Opção A: Fazer upload de arquivo CSV</strong></label><br>
+                <input type="file" name="csv_file" accept=".csv,text/csv,text/plain" style="margin-top: 5px;">
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label><strong>Opção B: Ou cole o texto da sua planilha abaixo</strong></label>
+                <textarea name="raw_textarea" rows="6" style="width: 100%; margin-top: 5px; font-family: monospace;" placeholder="Farinha de Trigo; Secos; 28.50; 5000; g&#10;Leite Condensado; Laticínios; 7.20; 395; g"></textarea>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" class="button" onclick="document.getElementById('km-import-modal').style.display='none'">Cancelar</button>
+                <button type="submit" class="button button-primary">Processar Importação</button>
+            </div>
+        </form>
+    </div>
+</div>
             <table class="wp-list-table widefat fixed striped" id="km-ingredients-table">
                 <thead>
                     <tr>
-                        <th style="width: 25%;">
+                        <th style="width: 25%;"><a href="<?php echo esc_url($sort_url('name')); ?>">
                             Nome do Insumo 
                             <span class="km-tooltip-icon" title="Nome comercial ou de controle do insumo (ex: Leite Condensado Moça, Farinha de Trigo, Caixa 6 Doces).">?</span>
                         </th>
-                        <th style="width: 12%;">
+                        <th style="width: 12%;"><a href="<?php echo esc_url($sort_url('category')); ?>">
                             Categoria 
                             <span class="km-tooltip-icon" title="Tipo do item para separação automática entre receitas culinárias e kits comerciais.">?</span>
                         </th>
-                        <th style="width: 12%;">
+                        <th style="width: 12%;"><a href="<?php echo esc_url($sort_url('package_type')); ?>">
                             Tipo de Embalagem 
                             <span class="km-tooltip-icon" title="Como você compra este item (ex: Pacote, Lata, Caixa, Rolo).">?</span>
                         </th>
-                        <th style="width: 9%;">
+                        <th style="width: 9%;"><a href="<?php echo esc_url($sort_url('package_size')); ?>">
                             Conteúdo 
                             <span class="km-tooltip-icon" title="A quantidade líquida/peso que vem dentro da embalagem fechada (ex: 395, 1, 1000).">?</span>
                         </th>
-                        <th style="width: 9%;">
+                        <th style="width: 9%;"><a href="<?php echo esc_url($sort_url('unity')); ?>">
                             Unid. Embalagem 
                             <span class="km-tooltip-icon" title="Unidade de medida que vem descrita no rótulo da embalagem (ex: g, kg, ml, L, un).">?</span>
                         </th>
-                        <th style="width: 10%;">
+                        <th style="width: 10%;"><a href="<?php echo esc_url($sort_url('unity_cost')); ?>">
                             Custo (R$) 
                             <span class="km-tooltip-icon" title="Preço total pago pela embalagem/unidade de compra fechada.">?</span>
                         </th>
@@ -67,6 +113,7 @@ $unitsList    = ['g' => 'g', 'kg' => 'kg', 'ml' => 'ml', 'l' => 'L', 'un' => 'un
                         </th>
                         <th style="width: 3%; text-align: center;"></th>
                     </tr>
+                    
                 </thead>
                 <tbody id="km-ingredients-rows">
                     <?php if (!empty($ingredients)): ?>

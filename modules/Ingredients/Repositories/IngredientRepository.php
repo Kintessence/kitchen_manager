@@ -61,20 +61,30 @@ class IngredientRepository
         }
     }
 
-    public function getAll(): array 
-    {
-        global $wpdb;
-        $items = $wpdb->get_results("SELECT * FROM {$this->table} ORDER BY name ASC");
-        
-        foreach ($items as $item) {
-            $item->package_unit = $item->package_unit ?? $item->unit ?? 'g';
-            // Compatibilidade retroativa de categorias antigas
-            if ($item->category === 'tag') $item->category = 'finishing';
-            if ($item->category === 'flower') $item->category = 'decoration';
-        }
+    public function getAll(string $orderby = 'name', string $order = 'ASC'): array 
+{
+    global $wpdb; // 👈 Importa a conexão global do WordPress
 
-        return $items;
-    }
+    // Whitelist segura de colunas para ordenação
+    $allowed_columns = [
+        'name'         => 'name',
+        'category'     => 'category',
+        'package_cost' => 'package_cost',
+        'package_size' => 'package_size',
+        'unit'         => 'unit',
+        'created_at'   => 'created_at'
+    ];
+
+    $orderby = array_key_exists($orderby, $allowed_columns) ? $allowed_columns[$orderby] : 'name';
+    $order   = strtoupper($order) === 'DESC' ? 'DESC' : 'ASC';
+
+    // Executa a query utilizando a variável global $wpdb
+    $results = $wpdb->get_results(
+        "SELECT * FROM {$this->table} ORDER BY {$orderby} {$order}"
+    );
+
+    return $results ?: [];
+}
 
     public function getById(int $id): ?object 
     {

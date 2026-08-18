@@ -1,63 +1,56 @@
 <?php
 
+declare(strict_types=1);
+
 namespace KitchenManager\Modules\BusinessProfile\Admin;
 
 use KitchenManager\Modules\BusinessProfile\Services\BusinessProfileService;
 
-class BusinessProfilePage 
+class BusinessProfilePage
 {
     private BusinessProfileService $service;
 
-    public function __construct() 
+    public function __construct()
     {
         $this->service = new BusinessProfileService();
     }
 
-    public function registerMenu(): void 
+    public function registerMenu(): void
     {
         add_submenu_page(
             'kitchen-manager',
-            'Perfil do Negócio & Custos Estruturais',
-            'Perfil do Negócio',
+            'Perfil Financeiro | Kitchen Manager',
+            '⚙️ Perfil Financeiro',
             'manage_options',
-            'kitchen-manager-business-profile',
-            [$this, 'render'],
-            12
+            'kitchen-manager-settings',
+            [$this, 'renderPage']
         );
     }
 
-    public function handleSave(): void 
+    public function handleSaveProfile(): void
     {
         if (!current_user_can('manage_options')) {
-            wp_die('Acesso não autorizado.');
+            wp_die('Acesso negado.');
         }
 
-        check_admin_referer('km_save_profile_action', 'km_profile_nonce');
+        check_admin_referer('km_save_profile_nonce', 'km_profile_nonce');
 
-        $this->service->saveProfile($_POST);
-        wp_safe_redirect(admin_url('admin.php?page=kitchen-manager-business-profile&status=saved'));
-        exit;
-    }
-
-    public function handleReset(): void 
-    {
-        if (!current_user_can('manage_options')) {
-            wp_die('Acesso não autorizado.');
+        try {
+            $this->service->saveProfileFromInput($_POST);
+            wp_safe_redirect(admin_url('admin.php?page=kitchen-manager-settings&status=saved'));
+            exit;
+        } catch (\Throwable $e) {
+            error_log('KM Profile Save Error: ' . $e->getMessage());
+            wp_die('Erro ao salvar parâmetros: ' . esc_html($e->getMessage()));
         }
-
-        check_admin_referer('km_reset_profile_action');
-
-        $this->service->resetToDefaults();
-        wp_safe_redirect(admin_url('admin.php?page=kitchen-manager-business-profile&status=reset'));
-        exit;
     }
 
-    public function render(): void 
+    public function renderPage(): void
     {
         $profile = $this->service->getProfile();
-        $totals  = $this->service->calculateTotals($profile);
-        $status  = isset($_GET['status']) ? sanitize_text_field($_GET['status']) : '';
+        $metrics = $this->service->calculateMetrics($profile);
+        $status  = sanitize_key($_GET['status'] ?? '');
 
-        require_once KM_PLUGIN_DIR . 'modules/BusinessProfile/Views/business-profile-view.php';
+        require_once dirname(__DIR__) . '/Views/onboarding-wizard.php';
     }
 }
