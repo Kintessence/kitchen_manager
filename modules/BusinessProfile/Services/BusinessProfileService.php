@@ -10,8 +10,8 @@ use KitchenManager\Modules\BusinessProfile\Repositories\BusinessProfileRepositor
 
 class BusinessProfileService
 {
-    private const WEEKS_PER_MONTH = 4.3333; // 52 semanas / 12 meses
-    private const DEFAULT_ESTIMATED_CMV = 35.0; // 35% de custo de matéria-prima base
+    private const WEEKS_PER_MONTH = 4.3333;
+    private const DEFAULT_ESTIMATED_CMV = 35.0;
 
     public function __construct(
         private readonly BusinessProfileRepository $repository = new BusinessProfileRepository()
@@ -24,18 +24,40 @@ class BusinessProfileService
 
     public function saveProfileFromInput(array $input): BusinessProfileDTO
     {
-        // Sanitização e formatação de valores monetários e percentuais
+        $weeklySchedule = [];
+        $days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+        
+        $activeDays = 0;
+        $totalHours = 0.0;
+        foreach ($days as $day) {
+            $val = isset($input['weekly_schedule'][$day]) ? (float) $input['weekly_schedule'][$day] : 0.0;
+            $val = max(0.0, min(24.0, $val));
+            $weeklySchedule[$day] = $val;
+            if ($val > 0) {
+                $activeDays++;
+                $totalHours += $val;
+            }
+        }
+
+        $workDaysPerWeek = $activeDays > 0 ? $activeDays : 5;
+        $workHoursPerDay = $activeDays > 0 ? ($totalHours / $activeDays) : 8.0;
+
         $dto = new BusinessProfileDTO(
             ownerSalaryTarget: $this->parseNumber($input['owner_salary_target'] ?? 2500.0),
             fixedExpensesTotal: $this->parseNumber($input['fixed_expenses_total'] ?? 600.0),
-            workDaysPerWeek: (int) ($input['work_days_per_week'] ?? 5),
-            workHoursPerDay: (float) ($input['work_hours_per_day'] ?? 6.0),
+            workDaysPerWeek: $workDaysPerWeek,
+            workHoursPerDay: $workHoursPerDay,
             productionStaffCount: (int) ($input['production_staff_count'] ?? 1),
             targetNetMargin: $this->parseNumber($input['target_net_margin'] ?? 25.0),
             cardFeeRate: $this->parseNumber($input['card_fee_rate'] ?? 3.5),
             taxRate: $this->parseNumber($input['tax_rate'] ?? 0.0),
             ingredientWasteFactor: $this->parseNumber($input['ingredient_waste_factor'] ?? 5.0),
-            setupCompleted: true
+            setupCompleted: true,
+            fixedExpensesList: $this->cleanRepeater($input['fixed_expenses'] ?? []),
+            variableExpensesList: $this->cleanRepeater($input['variable_expenses'] ?? []),
+            laborItemsList: $this->cleanRepeater($input['labor_items'] ?? []),
+            salesChannelsList: $this->cleanRepeater($input['sales_channels'] ?? []),
+            weeklySchedule: $weeklySchedule
         );
 
         $this->repository->save($dto);
@@ -46,30 +68,29 @@ class BusinessProfileService
     {
         $p = $profile ?? $this->getProfile();
 
-        // 1. Horas Produtivas Mensais
-        $monthlyHours = max(
-            1.0,
-            $p->workDaysPerWeek * $p->workHoursPerDay * self::WEEKS_PER_MONTH * $p->productionStaffCount
-        );
+        $weeklySchedule = !empty($p->weeklySchedule) ? $p->weeklySchedule : [];
+        if (!empty($weeklySchedule)) {
+            $hoursPerWeek = array_sum($weeklySchedule);
+        } else {
+            $hoursPerWeek = $p->workDaysPerWeek * $p->workHoursPerDay;
+        }
 
-        // 2. Custos Estruturais
+        $monthlyHours = max(1.0, $hoursPerWeek * self::WEEKS_PER_MONTH * $p->productionStaffCount);
+
         $totalStructuralCost = $p->ownerSalaryTarget + $p->fixedExpensesTotal;
         $costPerHour = $totalStructuralCost / $monthlyHours;
         $costPerMinute = $costPerHour / 60.0;
 
-        // 3. Taxas Variáveis e Markup
         $totalVariableRates = $p->taxRate + $p->cardFeeRate + $p->targetNetMargin;
         $effectiveRates = min(95.0, max(0.0, $totalVariableRates));
         
         $markupDivisor = max(0.05, 1.0 - ($effectiveRates / 100.0));
         $markupMultiplier = 1.0 / $markupDivisor;
 
-        // 4. Ponto de Equilíbrio (Break-Even)
         $operationalVariableRates = $p->taxRate + $p->cardFeeRate + self::DEFAULT_ESTIMATED_CMV;
         $contributionMarginPct = max(5.0, 100.0 - $operationalVariableRates);
         $breakEvenRevenue = $totalStructuralCost / ($contributionMarginPct / 100.0);
 
-        // 5. Multiplicador de Desperdício
         $wasteMultiplier = 1.0 + ($p->ingredientWasteFactor / 100.0);
 
         return new FinancialMetricsDTO(
@@ -86,11 +107,20 @@ class BusinessProfileService
 
     private function parseNumber(mixed $val): float
     {
-        if (is_numeric($val)) {
-            return (float) $val;
-        }
+        if (is_numeric($val)) return (float) $val;
         $cleaned = preg_replace('/[^\d,\.]/', '', (string) $val);
         $cleaned = str_replace(',', '.', (string) $cleaned);
         return max(0.0, (float) $cleaned);
+    }
+
+    private function cleanRepeater(array $items): array
+    {
+        $cleaned = [];
+        foreach ($items as $item) {
+            if (!empty($item['name'])) {
+                $cleaned[] = $item;
+            }
+        }
+        return $cleaned;
     }
 }

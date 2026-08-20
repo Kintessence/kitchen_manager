@@ -3,7 +3,7 @@
  * Plugin Name: Kitchen Manager (Gestão Gastronômica)
  * Plugin URI:  https://estudiodrquem.com.br
  * Description: Sistema modular de precificação, controle de insumos, fichas técnicas e inteligência financeira para confeitarias e cozinhas artesanais.
- * Version:     1.0.0
+ * Version:     1.0.2
  * Author:      Estúdio Dr.Quem!
  * Author URI:  https://estudiodrquem.com.br
  * Text Domain: kitchen-manager
